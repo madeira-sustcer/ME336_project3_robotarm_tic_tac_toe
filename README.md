@@ -1,6 +1,8 @@
 # BionicDL-CobotLearning-Project3
 The project is illustrated with Aubo-i5 and realsense 400 series. If you are doing the project with a different robot arm, just replacing the aubo_robot directory with you robot arm's ROS package and lanuch the corresponding moveit group node.
 
+# For Franka and Cobotta, you will use the gripper to pick up the pieces and be sure to add table and walls in the urdf to avoid collision for motion planning. please refer to the BionicDL-CobotLearning-Project3/aubo_robot/aubo_description/urdf/aubo_i5_robot.urdf.xacro
+
 # Project Setup
 Before running the project, make sure you've installed ROS kinetic (http://wiki.ros.org/kinetic/Installation/Ubuntu) and catkin_tools (https://catkin-tools.readthedocs.io/en/latest/installing.html).
 
@@ -45,7 +47,7 @@ Use the hand eye calibration results you've got from project2 and complete the f
 $ roslaunch aubo_i5_moveit_config moveit_planning_execution.launch sim:=false robot_ip:=192.168.1.102
 ```
 
-2. Publish the handeye transformation to /tf, run:
+2. Publish the handeye transformation to /tf, or you can write the transformation in urdf(aubo_i5_robot.urdf.xacro):
 ```sh
 $ python calculate_publish_handeye_matrix.py
 ```
