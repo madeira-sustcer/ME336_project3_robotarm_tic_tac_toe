@@ -3,6 +3,8 @@ from random import choice
 import platform
 import time
 from os import system
+import vision_detection as vd
+#import robot
 
 """
 An implementation of Minimax AI Algorithm in Tic Tac Toe,O
@@ -207,6 +209,7 @@ def ai_turn(c_choice, h_choice):
         x, y = move[0], move[1]
 
     set_move(x, y, COMP)
+    #robot.play(x, y)       ##
     time.sleep(1)
 
 
@@ -235,7 +238,8 @@ def human_turn(c_choice, h_choice):
 
     while move < 1 or move > 9:
         try:
-            move = int(input('Use numpad (1..9): '))
+            #move = int(input('Use numpad (1..9): '))
+            move = vd.human_detection()    ##
             coord = moves[move]
             can_move = set_move(coord[0], coord[1], HUMAN)
 

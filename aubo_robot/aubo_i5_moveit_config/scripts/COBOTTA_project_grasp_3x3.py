@@ -15,89 +15,17 @@ import geometry_msgs.msg
 import cv2
 import pyrealsense2 as rs
 from game import *
+from vision_detection import RSCamera
+#import tic_tac_toe
 
 
-# camera matrix of realsense
-camera_info = CameraInfo()
-# camera_info.K = [616.3787841796875, 0.0, 434.0303955078125, 0.0, 616.4257202148438, 234.33065795898438, 0.0, 0.0, 1.0]
-camera_info.K = [931.6937866210938, 0.0, 624.7894897460938, 0.0, 931.462890625, 360.5186767578125, 0.0, 0.0, 1.0]
-camera_info.header.frame_id = 'camera_color_optical_frame'
-camera_info.height = 720
-camera_info.width = 1280
-
-chessboard_size = (3,3)
-refine_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-
-R = [0, 0, 255]
-G = [0, 255, 0]
-B = [255, 0, 0]
-
-
-def contours_filter(contours):
-    pieces_contours = []
-    for contour in contours:
-        if cv2.contourArea(contour)>=50:
-            pieces_contours.append(contour)
-    return pieces_contours
-
-def find_center(contours):
-    centers = []
-    for contour in contours:
-        M = cv2.moments(contour)
-        centers.append([int(M['m10']/M['m00']), int(M['m01']/M['m00'])])
-    return centers
-
-def get_blue_mask(hsv_image):
-    Lower = np.array([100, 240, 50])
-    Upper = np.array([124, 255, 250])
-    mask = cv2.inRange(hsv_image, Lower, Upper)
-    return mask
-
-def get_green_mask(hsv_image):
-    Lower = np.array([35, 140, 50])
-    Upper = np.array([77, 255, 250])
-    mask = cv2.inRange(hsv_image, Lower, Upper)
-    return mask
-
-def get_red_mask(hsv_image):
-    Lower = np.array([156, 80, 50])
-    Upper = np.array([180, 255, 250])
-    mask = cv2.inRange(hsv_image, Lower, Upper)
-    return mask
-
-def pieces_detect(color_image, piece_type='blue'):
-    hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
-    if (piece_type=='blue' or piece_type=='b'):
-        #print('b')
-        mask = get_blue_mask(hsv_image)
-    elif (piece_type=='green' or piece_type=='g'):
-        #print('g')
-        mask = get_green_mask(hsv_image)
-    elif (piece_type=='red' or piece_type=='r'):
-        mask = get_red_mask(hsv_image)
-
-    mask,contours,hierarchv = cv2.findContours(mask,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-    pieces_contours = contours_filter(contours)
-    pieces_centers = find_center(pieces_contours)
-
-    color_image = cv2.drawContours(color_image, pieces_contours, -1, G, 1)
-    for center in pieces_centers:
-        color_image=cv2.circle(color_image, (center[0], center[1]), 2, R, -1)
-
-    #gray_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
-    #circles=cv2.HoughCircles(gray_image,cv2.HOUGH_GRADIENT,1,1,param1=10,param2=20,minRadius=5,maxRadius=8)
-    #if circles is not None:
-    #    for circle in circles[0]:
-    #        x, y, r = int(circle[0]), int(circle[1]), int(circle[2])
-    #        color_image=cv2.circle(color_image, (x, y), r, (0,0,255), -1)
-
-    return mask, color_image
-
-    #gray_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
-    #gray_image = np.float32(gray_image)
-    #dst = cv2.cornerHarris(gray_image, 2, 1, 0.04)
-    #dst = cv2.dilate(dst, None)
-    #color_image[dst>0.05*dst.max()]=[0, 0, 255]
+## camera matrix of realsense
+#camera_info = CameraInfo()
+## camera_info.K = [616.3787841796875, 0.0, 434.0303955078125, 0.0, 616.4257202148438, 234.33065795898438, 0.0, 0.0, 1.0]
+#camera_info.K = [931.6937866210938, 0.0, 624.7894897460938, 0.0, 931.462890625, 360.5186767578125, 0.0, 0.0, 1.0]
+#camera_info.header.frame_id = 'camera_color_optical_frame'
+#camera_info.height = 720
+#camera_info.width = 1280
 
 def robot_player(color_image, depth_image, ai_move):
     # TODO: detect circles or other features in the color image
@@ -233,9 +161,16 @@ def main():
         pass
 
     # start the game
-    while game.gameOver() == False:
-        # TODO: Ask the human to place her piece X, detect the move and update the state of the game board
+    game.init_game()
 
+    while len(game.empty_cells(game.board)) > 0 and game.gameOver() == False:
+        # TODO: Ask the human to place her piece X, detect the move and update the state of the game board
+        if game.first == 'N':
+            game.ai_turn(self.c_choice, self.h_choice)
+            game.first = ''
+
+        game.human_turn(self.c_choice, self.h_choice, detector)
+        game.ai_turn(game.c_choice, game.h_choice)
 
         if game.gameOver() == True:
             break
@@ -246,35 +181,46 @@ def main():
     print("Game Over. " + game.whoWon() + " Wins")
 
 # initiate realsense
-#image_size=[1280, 720]
-image_size=[640, 480]
 
-points = rs.points()
-pipeline= rs.pipeline()
-config = rs.config()
-config.enable_stream(rs.stream.color, image_size[0], image_size[1], rs.format.bgr8, 30)
-config.enable_stream(rs.stream.depth, image_size[0], image_size[1], rs.format.z16, 30)
-profile = pipeline.start(config)
-depth_sensor = profile.get_device().first_depth_sensor()
-depth_scale = depth_sensor.get_depth_scale()
-align_to = rs.stream.color
-align = rs.align(align_to)
+c = RSCamera()
+game = TicTacToe()
+game.init_game()
+if game.h_choice == 'X':
+    c.h_choice = 'b'
+else:
+    c.h_choice = 'g'
+#while 1:
+img = c.board_detect()
+#    cv2.imshow('img', img)
+#    cv2.waitKey(1)
+#time.sleep(3)
+#print('start')
 
-# capture the initial image,
-time.sleep(3)
+while len(game.empty_cells(game.board)) > 0 and game.gameOver(game.board) == False:
+        # TODO: Ask the human to place her piece X, detect the move and update the state of the game board
+    if game.first == 'N':
+        game.ai_turn(game.c_choice, game.h_choice)
+        game.first = ''
+
+    game.human_turn(game.c_choice, game.h_choice, c)
+    print('switch')
+    game.ai_turn(game.c_choice, game.h_choice)
+
+    if game.gameOver(game.board) == True:
+        break
+
+    # TODO: calculate robot's move and execute it
 
 
-while 1:
-    frames = pipeline.wait_for_frames()
-    aligned_frames = align.process(frames)
-    #aligned_depth_frame = aligned_frames.get_depth_frame()
-    color_frame = aligned_frames.get_color_frame()
-    #depth_image_background = np.asanyarray(aligned_depth_frame.get_data())
-    color_image_background = np.asanyarray(color_frame.get_data())
-    hsv, img = pieces_detect(color_image_background, piece_type='r')
+print("Game Over. " + game.whoWon() + " Wins")
+
+#while 1:
+#    img = c.board_detect()
+    #print(c.board_center_x, c.board_center_y)
+    #print("-------")
     
-    cv2.imshow('img', img)
-    cv2.imshow('hsv', hsv)
-    cv2.waitKey(1)
+#    cv2.imshow('img', img)
+    #cv2.imshow('hsv', hsv)
+#    cv2.waitKey(1)
     #if cv2.waitKey(1) & 0xFF == ord('q'):
     #    break
